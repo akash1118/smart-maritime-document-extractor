@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMDE — Smart Maritime Document Extractor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #1f6feb;
+      --accent-hover: #388bfd;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --teal: #39d0d8;
+      --radius: 8px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    header h1 span { font-size: 20px; }
+    #health-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+    #health-badge.ok    { border-color: var(--green); color: var(--green); }
+    #health-badge.error { border-color: var(--red);   color: var(--red);   }
+    #health-badge.degraded { border-color: var(--yellow); color: var(--yellow); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 0;
+      height: calc(100vh - 49px);
+    }
+
+    /* ── Left panel ── */
+    .left-panel {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Right panel ── */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 0 16px;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      background: none; border: none; color: var(--muted);
+      padding: 12px 14px; cursor: pointer; font-size: 13px;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); }
+    .tab-btn .badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--accent); color: #fff; border-radius: 10px;
+      font-size: 10px; font-weight: 700; padding: 1px 5px; margin-left: 5px;
+    }
+
+    .tab-content {
+      flex: 1; overflow-y: auto; padding: 20px;
+      display: none;
+    }
+    .tab-content.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted); margin-bottom: 12px;
+    }
+
+    /* ── Form elements ── */
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input[type="text"], input[type="file"], select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, select:focus { border-color: var(--accent); }
+
+    input[type="file"] { padding: 6px 8px; cursor: pointer; }
+    input[type="file"]::file-selector-button {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text); padding: 3px 8px;
+      cursor: pointer; font-size: 12px; margin-right: 8px;
+    }
+
+    /* Toggle */
+    .toggle-group {
+      display: flex; gap: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+    }
+    .toggle-group button {
+      flex: 1; background: none; border: none; color: var(--muted);
+      padding: 6px 10px; cursor: pointer; font-size: 12px; transition: all 0.15s;
+    }
+    .toggle-group button.active {
+      background: var(--accent); color: #fff;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: none; border-radius: 6px; cursor: pointer;
+      font-size: 13px; font-weight: 500; padding: 8px 14px;
+      transition: opacity 0.15s, background 0.15s;
+      width: 100%; justify-content: center;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary  { background: var(--accent);  color: #fff; }
+    .btn-primary:not(:disabled):hover  { background: var(--accent-hover); }
+    .btn-success  { background: #238636; color: #fff; }
+    .btn-success:not(:disabled):hover  { background: #2ea043; }
+    .btn-outline  { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:not(:disabled):hover  { border-color: var(--accent); color: var(--accent); }
+    .btn-danger   { background: #b62324; color: #fff; }
+    .btn-danger:not(:disabled):hover   { background: #d72b2b; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; width: auto; }
+
+    .btn-row { display: flex; gap: 8px; }
+    .btn-row .btn { flex: 1; }
+
+    /* ── Session ID display ── */
+    .session-box {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .session-box input { font-family: monospace; font-size: 11px; }
+    .session-box button {
+      flex-shrink: 0; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 6px; padding: 7px 10px;
+      cursor: pointer; font-size: 11px; white-space: nowrap;
+    }
+    .session-box button:hover { color: var(--text); }
+
+    /* ── Status pill ── */
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+    }
+    .pill-green  { background: #1a3a22; color: var(--green); }
+    .pill-yellow { background: #3a2e0a; color: var(--yellow); }
+    .pill-red    { background: #3a1a1a; color: var(--red); }
+    .pill-blue   { background: #0d2145; color: var(--accent-hover); }
+    .pill-muted  { background: var(--surface2); color: var(--muted); }
+    .pill-teal   { background: #0e2e30; color: var(--teal); }
+
+    /* ── Job poller ── */
+    #job-poller {
+      display: none; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px; background: var(--surface2);
+    }
+    .progress-bar-wrap {
+      height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%; background: var(--accent); border-radius: 2px;
+      animation: progress-indeterminate 1.5s ease-in-out infinite;
+      width: 40%;
+    }
+    @keyframes progress-indeterminate {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+
+    /* ── JSON viewer ── */
+    .json-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre;
+      color: var(--text);
+    }
+
+    /* ── Extraction result cards ── */
+    .result-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+    }
+    .result-title { font-size: 16px; font-weight: 600; }
+    .result-subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .info-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;
+    }
+    .info-item { background: var(--bg); border-radius: 6px; padding: 10px; }
+    .info-item .key { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+    .info-item .val { font-size: 13px; font-weight: 500; }
+
+    /* ── Fields table ── */
+    .fields-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .fields-table th {
+      text-align: left; padding: 6px 10px;
+      color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border);
+    }
+    .fields-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+    .fields-table tr:last-child td { border-bottom: none; }
+
+    /* ── Flags ── */
+    .flag-item {
+      display: flex; gap: 8px; align-items: flex-start;
+      padding: 8px; border-radius: 6px; margin-bottom: 6px;
+    }
+    .flag-item.CRITICAL { background: #3a1a1a; border: 1px solid #6e2121; }
+    .flag-item.HIGH     { background: #2e2200; border: 1px solid #6e4c00; }
+    .flag-item.MEDIUM   { background: #1e2400; border: 1px solid #4e5a00; }
+    .flag-item.LOW      { background: var(--surface2); border: 1px solid var(--border); }
+
+    /* ── Documents table in session view ── */
+    .doc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .doc-table th {
+      text-align: left; padding: 8px 10px; color: var(--muted);
+      font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .doc-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table tr:hover td { background: var(--surface2); }
+
+    /* ── Divider ── */
+    .section-label {
+      font-size: 11px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.05em; margin: 4px 0 8px;
+    }
+
+    /* ── Alert ── */
+    .alert {
+      padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px;
+    }
+    .alert-error   { background: #3a1a1a; border: 1px solid var(--red); color: var(--red); }
+    .alert-success { background: #1a3a22; border: 1px solid var(--green); color: var(--green); }
+    .alert-info    { background: #0d2145; border: 1px solid var(--accent); color: var(--accent-hover); }
+    .alert-warn    { background: #2e2200; border: 1px solid var(--yellow); color: var(--yellow); }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid transparent; border-top-color: currentColor;
+      border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Misc ── */
+    .gap-8  { display: flex; flex-direction: column; gap: 8px; }
+    .gap-12 { display: flex; flex-direction: column; gap: 12px; }
+    .mt-12  { margin-top: 12px; }
+    .mt-16  { margin-top: 16px; }
+    .monospace { font-family: monospace; font-size: 11px; }
+    .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 13px; }
+
+    details summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 6px 0; user-select: none; }
+    details summary:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header>
+  <h1><span>🚢</span> Smart Maritime Document Extractor</h1>
+  <button id="health-badge" onclick="checkHealth()" title="Click to refresh">
+    <span class="dot"></span>
+    <span id="health-text">Checking…</span>
+  </button>
+</header>
+
+<!-- ═══════════════════ LAYOUT ═══════════════════ -->
+<div class="layout">
+
+  <!-- ────────── LEFT PANEL ────────── -->
+  <div class="left-panel">
+
+    <!-- Session -->
+    <div class="card">
+      <div class="card-title">Session</div>
+      <div class="gap-8">
+        <div>
+          <label>Session ID</label>
+          <div class="session-box">
+            <input type="text" id="session-id" placeholder="Auto-created on first upload" readonly />
+            <button onclick="copySessionId()" title="Copy">📋</button>
+            <button onclick="clearSession()" title="New session">✕</button>
+          </div>
+        </div>
+        <div id="session-stats" style="display:none" class="gap-8">
+          <div class="btn-row">
+            <button class="btn btn-outline btn-sm" onclick="loadSession()">↻ Refresh</button>
+            <button class="btn btn-outline btn-sm" onclick="switchTab('report')">📄 Report</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-title">Upload Document</div>
+      <div class="gap-12">
+        <div>
+          <label>File (JPEG, PNG, PDF — max 10 MB)</label>
+          <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.pdf" />
+        </div>
+        <div>
+          <label>Mode</label>
+          <div class="toggle-group">
+            <button id="mode-sync"  class="active" onclick="setMode('sync')">Sync</button>
+            <button id="mode-async" onclick="setMode('async')">Async</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="upload-btn" onclick="handleUpload()">
+          Extract Document
+        </button>
+      </div>
+    </div>
+
+    <!-- Job poller -->
+    <div id="job-poller" class="card">
+      <div class="card-title">Async Job</div>
+      <div id="job-status-text" style="font-size:13px; color: var(--muted);">Queued…</div>
+      <div class="progress-bar-wrap"><div class="progress-bar"></div></div>
+      <div class="mt-12">
+        <label>Job ID</label>
+        <div class="monospace" id="job-id-display" style="color: var(--muted); word-break: break-all;"></div>
+      </div>
+    </div>
+
+    <!-- Session actions -->
+    <div class="card" id="validate-card" style="display:none">
+      <div class="card-title">Compliance</div>
+      <div class="gap-8">
+        <div id="validate-hint" class="alert alert-info" style="font-size:12px; margin:0">
+          Upload at least 2 documents to run validation.
+        </div>
+        <button class="btn btn-success" id="validate-btn" onclick="runValidation()" disabled>
+          ✓ Validate Session
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ────────── RIGHT PANEL ────────── -->
+  <div class="right-panel">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="result"     onclick="switchTab('result')">Extraction Result</button>
+      <button class="tab-btn"        data-tab="session"    onclick="switchTab('session')">Session <span class="badge" id="doc-count-badge" style="display:none"></span></button>
+      <button class="tab-btn"        data-tab="validation" onclick="switchTab('validation')">Validation</button>
+      <button class="tab-btn"        data-tab="report"     onclick="switchTab('report')">Report</button>
+      <button class="tab-btn"        data-tab="health"     onclick="switchTab('health')">Health</button>
+    </div>
+
+    <!-- Tab: Extraction Result -->
+    <div class="tab-content active" id="tab-result">
+      <div id="result-empty" class="empty-state">
+        Upload a maritime document to see the extraction result here.
+      </div>
+      <div id="result-content" style="display:none"></div>
+    </div>
+
+    <!-- Tab: Session -->
+    <div class="tab-content" id="tab-session">
+      <div id="session-empty" class="empty-state">
+        Upload a document to start a session.
+      </div>
+      <div id="session-content" style="display:none"></div>
+    </div>
+
+    <!-- Tab: Validation -->
+    <div class="tab-content" id="tab-validation">
+      <div id="validation-empty" class="empty-state">
+        Run "Validate Session" after uploading at least 2 documents.
+      </div>
+      <div id="validation-content" style="display:none"></div>
+    </div>
+
+    <!-- Tab: Report -->
+    <div class="tab-content" id="tab-report">
+      <div id="report-empty" class="empty-state">
+        Reports are generated from session data. Upload documents first.
+      </div>
+      <div id="report-content" style="display:none"></div>
+    </div>
+
+    <!-- Tab: Health -->
+    <div class="tab-content" id="tab-health">
+      <div id="health-content" class="empty-state">Click the health badge to load.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+<script>
+const API = '/api';
+let currentMode = 'sync';
+let pollInterval = null;
+
+// ─── Tab switching ───────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+  if (name === 'session' && sessionId()) loadSession();
+  if (name === 'report'  && sessionId()) loadReport();
+  if (name === 'health')  checkHealth();
+}
+
+// ─── Utilities ──────────────────────────────────
+function sessionId() { return document.getElementById('session-id').value.trim(); }
+function setSession(id) {
+  document.getElementById('session-id').value = id;
+  document.getElementById('session-stats').style.display = 'block';
+  document.getElementById('validate-card').style.display = 'block';
+}
+function clearSession() {
+  document.getElementById('session-id').value = '';
+  document.getElementById('session-stats').style.display = 'none';
+  document.getElementById('validate-card').style.display = 'none';
+  document.getElementById('session-content').style.display = 'none';
+  document.getElementById('session-empty').style.display = 'block';
+  document.getElementById('doc-count-badge').style.display = 'none';
+}
+function copySessionId() {
+  const id = sessionId();
+  if (id) navigator.clipboard.writeText(id).then(() => alert('Copied!'));
+}
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('mode-sync').classList.toggle('active', m === 'sync');
+  document.getElementById('mode-async').classList.toggle('active', m === 'async');
+}
+function pillHtml(text, type) {
+  const map = { HIGH:'green', MEDIUM:'yellow', LOW:'blue', CRITICAL:'red',
+    OK:'green', WARN:'yellow', DEGRADED:'yellow', ERROR:'red',
+    APPROVED:'green', CONDITIONAL:'yellow', REJECTED:'red',
+    COMPLETE:'green', FAILED:'red', QUEUED:'blue', PROCESSING:'teal',
+    CONSISTENT:'green', INCONSISTENT:'red', MISSING:'yellow' };
+  const cls = map[text] || 'muted';
+  return `<span class="pill pill-${cls}">${text ?? '—'}</span>`;
+}
+function escHtml(s) {
+  if (s == null) return '<span style="color:var(--muted)">null</span>';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function jsonBlock(data) {
+  return `<div class="json-block">${escHtml(JSON.stringify(data, null, 2))}</div>`;
+}
+function showError(msg) {
+  return `<div class="alert alert-error">${msg}</div>`;
+}
+
+// ─── Health check ─────────────────────────────
+async function checkHealth() {
+  const badge = document.getElementById('health-badge');
+  const text  = document.getElementById('health-text');
+  text.textContent = 'Checking…';
+  badge.className = '';
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    const ok = d.status === 'OK';
+    badge.className = ok ? 'ok' : 'degraded';
+    text.textContent = ok ? 'Online' : 'Degraded';
+
+    document.getElementById('health-content').innerHTML = `
+      <div class="result-header">
+        <div>
+          <div class="result-title">Service Health</div>
+          <div class="result-subtitle">${d.timestamp}</div>
+        </div>
+        ${pillHtml(d.status, d.status)}
+      </div>
+      <div class="info-grid">
+        <div class="info-item"><div class="key">Status</div><div class="val">${pillHtml(d.status)}</div></div>
+        <div class="info-item"><div class="key">Version</div><div class="val">${escHtml(d.version)}</div></div>
+        <div class="info-item"><div class="key">Uptime</div><div class="val">${d.uptime}s</div></div>
+        <div class="info-item"><div class="key">Timestamp</div><div class="val monospace" style="font-size:11px">${escHtml(d.timestamp)}</div></div>
+      </div>
+      <div class="section-label">Dependencies</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="key">Database</div><div class="val">${pillHtml(d.dependencies?.database)}</div></div>
+        <div class="info-item"><div class="key">LLM Provider</div><div class="val">${pillHtml(d.dependencies?.llmProvider)}</div></div>
+        <div class="info-item"><div class="key">Queue</div><div class="val">${pillHtml(d.dependencies?.queue)}</div></div>
+      </div>
+    `;
+  } catch (e) {
+    badge.className = 'error';
+    text.textContent = 'Offline';
+    document.getElementById('health-content').innerHTML = showError('Could not reach server: ' + e.message);
+  }
+}
+
+// ─── Upload & Extract ────────────────────────
+async function handleUpload() {
+  const fileInput = document.getElementById('file-input');
+  const btn = document.getElementById('upload-btn');
+  const file = fileInput.files[0];
+  if (!file) { alert('Please select a file.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Extracting…';
+  switchTab('result');
+  document.getElementById('result-empty').style.display = 'none';
+  document.getElementById('result-content').style.display = 'block';
+  document.getElementById('result-content').innerHTML = `<div class="alert alert-info"><span class="spinner"></span> Sending to LLM…</div>`;
+
+  const fd = new FormData();
+  fd.append('document', file);
+  if (sessionId()) fd.append('sessionId', sessionId());
+
+  try {
+    const res = await fetch(`${API}/extract?mode=${currentMode}`, { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (!res.ok) {
+      document.getElementById('result-content').innerHTML = showError(`${data.error}: ${data.message}`);
+      return;
+    }
+
+    if (currentMode === 'async') {
+      // Async: show job poller
+      if (!sessionId() && data.sessionId) setSession(data.sessionId);
+      startPolling(data.jobId, data.sessionId);
+    } else {
+      // Sync: show result
+      if (!sessionId() && data.sessionId) setSession(data.sessionId);
+      renderExtractionResult(data, res.headers.get('X-Deduplicated') === 'true');
+      loadSession();
+    }
+  } catch (e) {
+    document.getElementById('result-content').innerHTML = showError('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Extract Document';
+    fileInput.value = '';
+  }
+}
+
+// ─── Async polling ──────────────────────────
+function startPolling(jobId, sid) {
+  if (sid && !sessionId()) setSession(sid);
+  const poller = document.getElementById('job-poller');
+  const statusEl = document.getElementById('job-status-text');
+  const jobIdEl  = document.getElementById('job-id-display');
+  poller.style.display = 'block';
+  jobIdEl.textContent  = jobId;
+  statusEl.textContent = 'Queued — waiting for worker…';
+
+  document.getElementById('result-content').innerHTML =
+    `<div class="alert alert-info"><span class="spinner"></span> Async job queued. Polling for result…</div>`;
+
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(async () => {
+    try {
+      const r = await fetch(`${API}/jobs/${jobId}`);
+      const d = await r.json();
+
+      if (d.status === 'QUEUED')      statusEl.textContent = `Queued (position ${d.queuePosition ?? '?'})`;
+      if (d.status === 'PROCESSING')  statusEl.textContent = 'Processing…';
+
+      if (d.status === 'COMPLETE') {
+        clearInterval(pollInterval);
+        poller.style.display = 'none';
+        renderExtractionResult(d.result, false);
+        loadSession();
+      }
+      if (d.status === 'FAILED') {
+        clearInterval(pollInterval);
+        poller.style.display = 'none';
+        document.getElementById('result-content').innerHTML =
+          showError(`Job failed: ${d.error} — ${d.message}`);
+      }
+    } catch (e) { /* retry on next tick */ }
+  }, 2000);
+}
+
+// ─── Render extraction result ───────────────
+function renderExtractionResult(d, deduped) {
+  if (!d) { document.getElementById('result-content').innerHTML = showError('Empty result'); return; }
+  const flags = d.flags || [];
+  const fields = d.fields || [];
+
+  const dedupBanner = deduped
+    ? `<div class="alert alert-warn" style="margin-bottom:14px">⚡ Deduplicated — cached result returned (file already extracted in this session)</div>`
+    : '';
+
+  const flagsHtml = flags.length
+    ? flags.map(f => `<div class="flag-item ${f.severity}">${pillHtml(f.severity)} <span style="font-size:12px">${escHtml(f.message)}</span></div>`).join('')
+    : `<div style="color:var(--muted);font-size:12px">No flags</div>`;
+
+  const fieldsHtml = fields.length
+    ? `<table class="fields-table"><thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Importance</th></tr></thead><tbody>
+        ${fields.slice(0, 20).map(f => `<tr>
+          <td style="color:var(--muted)">${escHtml(f.label)}</td>
+          <td>${escHtml(f.value)}</td>
+          <td>${pillHtml(f.status)}</td>
+          <td>${pillHtml(f.importance)}</td>
+        </tr>`).join('')}
+        ${fields.length > 20 ? `<tr><td colspan="4" style="color:var(--muted);font-size:11px">… and ${fields.length-20} more fields</td></tr>` : ''}
+      </tbody></table>`
+    : `<div style="color:var(--muted);font-size:12px">No fields extracted</div>`;
+
+  const validity = d.validity || {};
+  const medical  = d.medicalData || {};
+  const compliance = d.compliance || {};
+
+  document.getElementById('result-content').innerHTML = `
+    ${dedupBanner}
+    <div class="result-header">
+      <div>
+        <div class="result-title">${escHtml(d.documentName || d.documentType || 'Unknown Document')}</div>
+        <div class="result-subtitle">${escHtml(d.fileName)} &middot; ${escHtml(d.processingTimeMs)}ms</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${pillHtml(d.confidence)} ${pillHtml(d.status)}
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-item"><div class="key">Document Type</div><div class="val">${pillHtml(d.documentType)}</div></div>
+      <div class="info-item"><div class="key">Role</div><div class="val">${pillHtml(d.applicableRole)}</div></div>
+      <div class="info-item"><div class="key">Holder</div><div class="val">${escHtml(d.holderName)}</div></div>
+      <div class="info-item"><div class="key">Date of Birth</div><div class="val">${escHtml(d.dateOfBirth)}</div></div>
+      <div class="info-item"><div class="key">SIRB Number</div><div class="val monospace">${escHtml(d.sirbNumber)}</div></div>
+      <div class="info-item"><div class="key">Passport</div><div class="val monospace">${escHtml(d.passportNumber)}</div></div>
+    </div>
+
+    ${d.summary ? `<div class="alert alert-info" style="margin-bottom:16px;font-size:13px">${escHtml(d.summary)}</div>` : ''}
+
+    <div class="section-label">Validity</div>
+    <div class="info-grid" style="margin-bottom:16px">
+      <div class="info-item"><div class="key">Issue Date</div><div class="val">${escHtml(validity.dateOfIssue)}</div></div>
+      <div class="info-item"><div class="key">Expiry Date</div><div class="val">${escHtml(validity.dateOfExpiry)}</div></div>
+      <div class="info-item"><div class="key">Is Expired</div><div class="val">${pillHtml(validity.isExpired ? 'EXPIRED' : 'VALID')}</div></div>
+      <div class="info-item"><div class="key">Days Until Expiry</div><div class="val">${escHtml(validity.daysUntilExpiry)}</div></div>
+    </div>
+
+    ${medical.fitnessResult && medical.fitnessResult !== 'N/A' ? `
+      <div class="section-label">Medical Data</div>
+      <div class="info-grid" style="margin-bottom:16px">
+        <div class="info-item"><div class="key">Fitness</div><div class="val">${pillHtml(medical.fitnessResult)}</div></div>
+        <div class="info-item"><div class="key">Drug Test</div><div class="val">${pillHtml(medical.drugTestResult)}</div></div>
+        <div class="info-item"><div class="key">Restrictions</div><div class="val">${escHtml(medical.restrictions)}</div></div>
+        <div class="info-item"><div class="key">Expiry</div><div class="val">${escHtml(medical.expiryDate)}</div></div>
+      </div>
+    ` : ''}
+
+    <div class="section-label">Flags (${flags.length})</div>
+    <div style="margin-bottom:16px">${flagsHtml}</div>
+
+    <div class="section-label">Extracted Fields (${fields.length})</div>
+    <div style="margin-bottom:16px;overflow-x:auto">${fieldsHtml}</div>
+
+    <details>
+      <summary>Compliance Details</summary>
+      <div class="mt-12 info-grid">
+        <div class="info-item"><div class="key">Issuing Authority</div><div class="val">${escHtml(compliance.issuingAuthority)}</div></div>
+        <div class="info-item"><div class="key">Regulation</div><div class="val">${escHtml(compliance.regulationReference)}</div></div>
+        <div class="info-item"><div class="key">IMO Course</div><div class="val">${escHtml(compliance.imoModelCourse)}</div></div>
+        <div class="info-item"><div class="key">Recognized</div><div class="val">${pillHtml(compliance.recognizedAuthority ? 'YES' : 'NO')}</div></div>
+      </div>
+    </details>
+
+    <details style="margin-top:8px">
+      <summary>Raw JSON Response</summary>
+      <div class="mt-12">${jsonBlock(d)}</div>
+    </details>
+  `;
+}
+
+// ─── Load session ────────────────────────────
+async function loadSession() {
+  const sid = sessionId();
+  if (!sid) return;
+
+  try {
+    const r = await fetch(`${API}/sessions/${sid}`);
+    if (!r.ok) return;
+    const d = await r.json();
+
+    // Update badge
+    const badge = document.getElementById('doc-count-badge');
+    badge.textContent = d.documentCount;
+    badge.style.display = d.documentCount > 0 ? 'inline-flex' : 'none';
+
+    // Enable validate if 2+ docs
+    const validateBtn = document.getElementById('validate-btn');
+    const hint = document.getElementById('validate-hint');
+    validateBtn.disabled = d.documentCount < 2;
+    if (d.documentCount >= 2) {
+      hint.style.display = 'none';
+    } else {
+      hint.style.display = 'block';
+      hint.textContent = `Upload at least 2 documents to run validation (${d.documentCount}/2 uploaded).`;
+    }
+
+    // Render session tab
+    document.getElementById('session-empty').style.display = 'none';
+    document.getElementById('session-content').style.display = 'block';
+
+    const healthColor = { OK: 'green', WARN: 'yellow', CRITICAL: 'red' };
+
+    const docsHtml = d.documents.length
+      ? `<table class="doc-table">
+          <thead><tr>
+            <th>File</th><th>Type</th><th>Role</th><th>Holder</th>
+            <th>Confidence</th><th>Expired</th><th>Flags</th>
+          </tr></thead>
+          <tbody>
+          ${d.documents.map(doc => `<tr>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(doc.fileName)}">${escHtml(doc.fileName)}</td>
+            <td>${pillHtml(doc.documentType)}</td>
+            <td>${pillHtml(doc.applicableRole)}</td>
+            <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(doc.holderName)}</td>
+            <td>${pillHtml(doc.confidence)}</td>
+            <td>${doc.isExpired ? pillHtml('EXPIRED') : pillHtml('VALID')}</td>
+            <td>${doc.criticalFlagCount > 0
+              ? `<span class="pill pill-red">${doc.criticalFlagCount} CRIT</span>`
+              : doc.flagCount > 0
+                ? `<span class="pill pill-yellow">${doc.flagCount}</span>`
+                : '<span class="pill pill-muted">0</span>'}</td>
+          </tr>`).join('')}
+          </tbody>
+        </table>`
+      : `<div style="color:var(--muted);font-size:12px;padding:12px 0">No documents yet.</div>`;
+
+    const pendingHtml = d.pendingJobs.length
+      ? d.pendingJobs.map(j => `<div style="font-size:12px;display:flex;gap:8px;align-items:center">
+          ${pillHtml(j.status)}
+          <span class="monospace" style="color:var(--muted)">${j.jobId}</span>
+        </div>`).join('')
+      : '';
+
+    document.getElementById('session-content').innerHTML = `
+      <div class="result-header">
+        <div>
+          <div class="result-title">Session</div>
+          <div class="result-subtitle monospace">${escHtml(sid)}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${pillHtml(d.overallHealth)} ${pillHtml(d.detectedRole)}
+        </div>
+      </div>
+
+      <div class="info-grid" style="margin-bottom:16px">
+        <div class="info-item"><div class="key">Documents</div><div class="val">${d.documentCount}</div></div>
+        <div class="info-item"><div class="key">Detected Role</div><div class="val">${pillHtml(d.detectedRole)}</div></div>
+        <div class="info-item"><div class="key">Overall Health</div><div class="val">${pillHtml(d.overallHealth)}</div></div>
+        <div class="info-item"><div class="key">Pending Jobs</div><div class="val">${d.pendingJobs.length}</div></div>
+      </div>
+
+      <div class="section-label">Documents</div>
+      <div style="overflow-x:auto;margin-bottom:16px">${docsHtml}</div>
+
+      ${pendingHtml ? `<div class="section-label">Pending Jobs</div><div class="gap-8 mt-12">${pendingHtml}</div>` : ''}
+    `;
+  } catch (e) {
+    document.getElementById('session-content').innerHTML = showError('Failed to load session: ' + e.message);
+    document.getElementById('session-empty').style.display = 'none';
+    document.getElementById('session-content').style.display = 'block';
+  }
+}
+
+// ─── Validate ───────────────────────────────
+async function runValidation() {
+  const sid = sessionId();
+  if (!sid) return;
+
+  const btn = document.getElementById('validate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Validating…';
+
+  switchTab('validation');
+  document.getElementById('validation-empty').style.display = 'none';
+  document.getElementById('validation-content').style.display = 'block';
+  document.getElementById('validation-content').innerHTML =
+    `<div class="alert alert-info"><span class="spinner"></span> Running cross-document compliance check…</div>`;
+
+  try {
+    const r = await fetch(`${API}/sessions/${sid}/validate`, { method: 'POST' });
+    const d = await r.json();
+
+    if (!r.ok) {
+      document.getElementById('validation-content').innerHTML = showError(`${d.error}: ${d.message}`);
+      return;
+    }
+
+    renderValidation(d);
+  } catch (e) {
+    document.getElementById('validation-content').innerHTML = showError('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✓ Validate Session';
+    loadSession(); // refresh doc count
+  }
+}
+
+function renderValidation(d) {
+  const missing  = d.missingDocuments  || [];
+  const expiring = d.expiringDocuments || [];
+  const medical  = d.medicalFlags      || [];
+  const checks   = d.consistencyChecks || [];
+
+  const scoreColor = d.overallScore >= 90 ? 'green' : d.overallScore >= 70 ? 'yellow' : 'red';
+
+  document.getElementById('validation-content').innerHTML = `
+    <div class="result-header">
+      <div>
+        <div class="result-title">Compliance Validation</div>
+        <div class="result-subtitle">${escHtml(d.validatedAt)}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${pillHtml(d.overallStatus)}
+        <span class="pill pill-${scoreColor}" style="font-size:14px">${d.overallScore}/100</span>
+      </div>
+    </div>
+
+    ${d.summary ? `<div class="alert alert-info" style="margin-bottom:16px">${escHtml(d.summary)}</div>` : ''}
+
+    <div class="section-label">Holder Profile</div>
+    <div class="info-grid" style="margin-bottom:16px">
+      ${Object.entries(d.holderProfile || {}).map(([k, v]) =>
+        `<div class="info-item"><div class="key">${k.replace('resolved','').replace(/([A-Z])/g,' $1').trim()}</div><div class="val">${escHtml(v)}</div></div>`
+      ).join('')}
+    </div>
+
+    <div class="section-label">Consistency Checks (${checks.length})</div>
+    <div style="margin-bottom:16px">${checks.length
+      ? checks.map(c => `<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+          ${pillHtml(c.status)}
+          <span style="font-size:12px;color:var(--muted)">${escHtml(c.field)}</span>
+          <span style="font-size:12px">${escHtml(c.message)}</span>
+        </div>`).join('')
+      : `<div style="color:var(--muted);font-size:12px">None</div>`
+    }</div>
+
+    <div class="section-label">Missing Documents (${missing.length})</div>
+    <div style="margin-bottom:16px">${missing.length
+      ? missing.map(m => `<div class="flag-item ${m.severity}">${pillHtml(m.severity)} <span style="font-size:12px"><strong>${escHtml(m.documentName)}</strong> — ${escHtml(m.reason)}</span></div>`).join('')
+      : `<div style="color:var(--muted);font-size:12px">None</div>`
+    }</div>
+
+    <div class="section-label">Expiring Documents (${expiring.length})</div>
+    <div style="margin-bottom:16px">${expiring.length
+      ? expiring.map(e => `<div class="flag-item ${e.severity}">${pillHtml(e.severity)} <span style="font-size:12px"><strong>${escHtml(e.documentName)}</strong> — expires ${escHtml(e.expiryDate)} (${e.daysUntilExpiry}d)</span></div>`).join('')
+      : `<div style="color:var(--muted);font-size:12px">None</div>`
+    }</div>
+
+    <div class="section-label">Medical Flags (${medical.length})</div>
+    <div style="margin-bottom:16px">${medical.length
+      ? medical.map(f => `<div class="flag-item ${f.severity}">${pillHtml(f.severity)} <span style="font-size:12px">${escHtml(f.type)}: ${escHtml(f.message)}</span></div>`).join('')
+      : `<div style="color:var(--muted);font-size:12px">None</div>`
+    }</div>
+
+    ${d.recommendations?.length ? `
+      <div class="section-label">Recommendations</div>
+      <ul style="padding-left:18px;margin-bottom:16px">
+        ${d.recommendations.map(r => `<li style="font-size:13px;margin-bottom:4px">${escHtml(r)}</li>`).join('')}
+      </ul>
+    ` : ''}
+
+    <details><summary>Raw JSON</summary><div class="mt-12">${jsonBlock(d)}</div></details>
+  `;
+}
+
+// ─── Load report ────────────────────────────
+async function loadReport() {
+  const sid = sessionId();
+  if (!sid) return;
+
+  document.getElementById('report-empty').style.display = 'none';
+  document.getElementById('report-content').style.display = 'block';
+  document.getElementById('report-content').innerHTML =
+    `<div class="alert alert-info"><span class="spinner"></span> Generating report…</div>`;
+
+  try {
+    const r = await fetch(`${API}/sessions/${sid}/report`);
+    const d = await r.json();
+    if (!r.ok) {
+      document.getElementById('report-content').innerHTML = showError(`${d.error}: ${d.message}`);
+      return;
+    }
+    renderReport(d);
+  } catch (e) {
+    document.getElementById('report-content').innerHTML = showError('Network error: ' + e.message);
+  }
+}
+
+function renderReport(d) {
+  const ds = d.documentSummary || {};
+  const h  = d.holderProfile   || {};
+
+  document.getElementById('report-content').innerHTML = `
+    <div class="result-header">
+      <div>
+        <div class="result-title">Compliance Report</div>
+        <div class="result-subtitle">Generated ${escHtml(d.generatedAt)}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${pillHtml(d.overallHealth)} ${pillHtml(d.overallDecision)}
+        ${d.overallScore != null ? `<span class="pill pill-${d.overallScore >= 90 ? 'green' : d.overallScore >= 70 ? 'yellow' : 'red'}" style="font-size:14px">${d.overallScore}/100</span>` : ''}
+      </div>
+    </div>
+
+    <div class="section-label">Holder Profile</div>
+    <div class="info-grid" style="margin-bottom:16px">
+      <div class="info-item"><div class="key">Name</div><div class="val">${escHtml(h.name)}</div></div>
+      <div class="info-item"><div class="key">Date of Birth</div><div class="val">${escHtml(h.dateOfBirth)}</div></div>
+      <div class="info-item"><div class="key">SIRB</div><div class="val monospace">${escHtml(h.sirbNumber)}</div></div>
+      <div class="info-item"><div class="key">Passport</div><div class="val monospace">${escHtml(h.passportNumber)}</div></div>
+      <div class="info-item"><div class="key">Nationality</div><div class="val">${escHtml(h.nationality)}</div></div>
+      <div class="info-item"><div class="key">Rank</div><div class="val">${escHtml(h.rank)}</div></div>
+    </div>
+
+    <div class="section-label">Document Summary</div>
+    <div class="info-grid" style="margin-bottom:16px">
+      <div class="info-item"><div class="key">Total</div><div class="val">${ds.total}</div></div>
+      <div class="info-item"><div class="key">Complete</div><div class="val" style="color:var(--green)">${ds.complete}</div></div>
+      <div class="info-item"><div class="key">Expired</div><div class="val" style="color:${ds.expired > 0 ? 'var(--red)' : 'var(--muted)'}">${ds.expired}</div></div>
+      <div class="info-item"><div class="key">Expiring Soon</div><div class="val" style="color:${ds.expiringSoon > 0 ? 'var(--yellow)' : 'var(--muted)'}">${ds.expiringSoon}</div></div>
+    </div>
+
+    ${d.criticalIssues?.length ? `
+      <div class="section-label">Critical Issues</div>
+      <div style="margin-bottom:16px">
+        ${d.criticalIssues.map(f => `<div class="flag-item CRITICAL">${pillHtml('CRITICAL')} <span style="font-size:12px">${escHtml(f.message)}</span></div>`).join('')}
+      </div>
+    ` : ''}
+
+    ${d.warnings?.length ? `
+      <div class="section-label">Warnings</div>
+      <div style="margin-bottom:16px">
+        ${d.warnings.map(f => `<div class="flag-item ${f.severity}">${pillHtml(f.severity)} <span style="font-size:12px">${escHtml(f.message)}</span></div>`).join('')}
+      </div>
+    ` : ''}
+
+    <div class="section-label">Medical Status</div>
+    <div class="info-grid" style="margin-bottom:16px">
+      ${Object.entries(d.medicalStatus || {}).map(([k, v]) =>
+        `<div class="info-item"><div class="key">${k.replace(/([A-Z])/g,' $1').trim()}</div><div class="val">${v === true ? pillHtml('YES') : v === false ? pillHtml('NO') : escHtml(v)}</div></div>`
+      ).join('')}
+    </div>
+
+    ${d.validationSummary ? `
+      <div class="section-label">Validation Summary</div>
+      <div class="alert alert-info" style="margin-bottom:16px">${escHtml(d.validationSummary.summary)}</div>
+      ${d.validationSummary.recommendations?.length ? `
+        <ul style="padding-left:18px;margin-bottom:16px">
+          ${d.validationSummary.recommendations.map(r => `<li style="font-size:13px;margin-bottom:4px">${escHtml(r)}</li>`).join('')}
+        </ul>
+      ` : ''}
+    ` : `<div class="alert alert-warn" style="margin-bottom:16px">No validation run yet. Run "Validate Session" first.</div>`}
+
+    <details><summary>Raw JSON</summary><div class="mt-12">${jsonBlock(d)}</div></details>
+  `;
+}
+
+// ─── Init ───────────────────────────────────
+checkHealth();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>

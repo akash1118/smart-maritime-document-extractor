@@ -1,0 +1,10 @@
+The following text was returned by an AI model but could not be parsed as valid JSON. Your task is to extract and return ONLY the valid JSON object from the text below.
+
+Rules:
+- Remove any markdown code fences (```json ... ```)
+- Remove any explanatory text or preamble before or after the JSON
+- Return only the raw JSON object, starting with { and ending with }
+- Do not modify the values inside the JSON — only clean the surrounding text
+- If the JSON is structurally broken, repair it minimally to make it valid
+
+Text to repair:

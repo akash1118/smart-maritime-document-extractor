@@ -1,0 +1,106 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model Session {
+    id        String   @id @default(uuid()) @map("id")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    extractions Extraction[]
+    jobs        Job[]
+    validations Validation[]
+
+    @@map("sessions")
+}
+
+model Extraction {
+    id        String  @id @default(uuid()) @map("id")
+    sessionId String  @map("session_id")
+    session   Session @relation(fields: [sessionId], references: [id])
+
+    fileName String @map("file_name")
+    fileHash String @map("file_hash") @db.VarChar(64)
+
+    // Detection
+    documentType   String? @map("document_type")
+    documentName   String? @map("document_name")
+    category       String? @map("category")
+    applicableRole String? @map("applicable_role")
+    isRequired     Boolean? @map("is_required")
+    confidence     String? @map("confidence")
+    detectionReason String? @map("detection_reason")
+
+    // Holder
+    holderName        String? @map("holder_name")
+    dateOfBirth       String? @map("date_of_birth")
+    passportNumber    String? @map("passport_number")
+    sirbNumber        String? @map("sirb_number")
+    holderNationality String? @map("holder_nationality")
+    holderRank        String? @map("holder_rank")
+    holderPhoto       String? @map("holder_photo")
+
+    // Structured JSON data
+    fieldsJson      Json? @map("fields_json")
+    validityJson    Json? @map("validity_json")
+    medicalDataJson Json? @map("medical_data_json")
+    flagsJson       Json? @map("flags_json")
+    complianceJson  Json? @map("compliance_json")
+
+    isExpired Boolean @default(false) @map("is_expired")
+    summary   String? @map("summary")
+
+    rawLlmResponse   String? @map("raw_llm_response")
+    processingTimeMs Int?    @map("processing_time_ms")
+
+    status    String   @default("COMPLETE") @map("status")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    @@index([sessionId])
+    @@index([fileHash])
+    @@index([status])
+    @@map("extractions")
+}
+
+model Job {
+    id           String  @id @default(uuid()) @map("id")
+    sessionId    String  @map("session_id")
+    extractionId String? @map("extraction_id")
+
+    status String @default("QUEUED") @map("status")
+
+    errorCode    String? @map("error_code")
+    errorMessage String? @map("error_message")
+
+    retryCount  Int     @default(0) @map("retry_count")
+    isRetryable Boolean @default(true) @map("is_retryable")
+
+    queuedAt    DateTime  @default(now()) @map("queued_at")
+    startedAt   DateTime? @map("started_at")
+    completedAt DateTime? @map("completed_at")
+    updatedAt   DateTime  @updatedAt @map("updated_at")
+
+    session Session @relation(fields: [sessionId], references: [id])
+
+    @@index([status])
+    @@index([sessionId])
+    @@map("jobs")
+}
+
+model Validation {
+    id         String   @id @default(uuid()) @map("id")
+    sessionId  String   @map("session_id")
+    resultJson Json     @map("result_json")
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @updatedAt @map("updated_at")
+
+    session Session @relation(fields: [sessionId], references: [id])
+
+    @@index([sessionId])
+    @@map("validations")
+}
