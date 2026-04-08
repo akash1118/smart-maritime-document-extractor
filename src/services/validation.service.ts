@@ -4,6 +4,7 @@ import { prisma } from '../db/client';
 import { createLlmClient } from '../llm/llm.factory';
 import { safeParse } from '../utils/jsonParser';
 import { logger } from '../utils/logger';
+import { callLlmWithRetry } from '../utils/llmRetry';
 import { LlmValidationResult } from '../types';
 
 const llm = createLlmClient();
@@ -54,7 +55,7 @@ export async function validateSession(sessionId: string): Promise<LlmValidationR
 
   logger.info('validation.start', { sessionId, documentCount: documents.length });
 
-  const raw = await llm.validate(documents);
+  const raw = await callLlmWithRetry(() => llm.validate(documents), 'validate');
   const parsed: LlmValidationResult | null = safeParse(raw);
 
   if (!parsed) {

@@ -52,15 +52,17 @@ async function processNext(): Promise<void> {
     });
     logger.info('job.complete', { jobId, extractionId: extraction.id });
   } catch (err: any) {
-    const isTimeout = err.message === 'LLM_TIMEOUT';
+    // ExtractionError stores the semantic code in err.code; fall back to err.message
+    const errorCode: string = err.code || err.message || 'INTERNAL_ERROR';
+    const isTimeout = errorCode === 'LLM_TIMEOUT';
     await jobRepo.update(jobId, {
       status: 'FAILED',
-      errorCode: err.message || 'INTERNAL_ERROR',
+      errorCode,
       errorMessage: err.message || 'Unexpected error during processing',
       isRetryable: isTimeout,
       completedAt: new Date(),
     });
-    logger.error('job.failed', { jobId, error: err.message });
+    logger.error('job.failed', { jobId, error: errorCode });
   }
 
   setImmediate(processNext);

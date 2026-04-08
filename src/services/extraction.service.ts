@@ -5,6 +5,7 @@ import { createLlmClient } from '../llm/llm.factory';
 import { extractionRepo } from '../db/repositories/extraction.repo';
 import { sessionRepo } from '../db/repositories/session.repo';
 import { logger } from '../utils/logger';
+import { callLlmWithRetry } from '../utils/llmRetry';
 import { LlmExtractionResult } from '../types';
 
 const llm = createLlmClient();
@@ -56,8 +57,8 @@ export async function runExtraction(
   let raw = '';
 
   try {
-    // --- Step 1: Call LLM (30s timeout enforced inside client) ---
-    raw = await llm.extract(base64File, mimeType);
+    // --- Step 1: Call LLM (30s timeout enforced inside client, retries on 503/UNAVAILABLE) ---
+    raw = await callLlmWithRetry(() => llm.extract(base64File, mimeType), 'extract');
 
     // --- Step 2: Parse JSON (boundary extraction first) ---
     let parsed: LlmExtractionResult | null = safeParse(raw);
@@ -65,7 +66,7 @@ export async function runExtraction(
     // --- Step 3: Repair prompt fallback ---
     if (!parsed) {
       logger.warn('llm.parse_failed.attempting_repair', { fileName });
-      const repaired = await llm.repairJSON(raw);
+      const repaired = await callLlmWithRetry(() => llm.repairJSON(raw), 'repairJSON');
       raw = repaired; // store the repaired version
       parsed = safeParse(repaired);
     }
@@ -90,7 +91,7 @@ export async function runExtraction(
     if (parsed.detection?.confidence === 'LOW') {
       logger.warn('llm.low_confidence.retrying', { fileName });
       try {
-        const retryRaw = await llm.extractWithHints(base64File, mimeType, fileName);
+        const retryRaw = await callLlmWithRetry(() => llm.extractWithHints(base64File, mimeType, fileName), 'extractWithHints');
         const retryParsed: LlmExtractionResult | null = safeParse(retryRaw);
         if (retryParsed && retryParsed.detection?.confidence !== 'LOW') {
           raw = retryRaw;

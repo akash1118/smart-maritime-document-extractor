@@ -52,27 +52,34 @@ export const getSessionHandler = async (
     ]);
 
     const completed = extractions.filter((e) => e.status === 'COMPLETE');
+    const failed = extractions.filter((e) => e.status === 'FAILED');
+
+    const mapDoc = (e: Extraction) => ({
+      id: e.id,
+      fileName: e.fileName,
+      documentType: e.documentType,
+      documentName: e.documentName,
+      applicableRole: e.applicableRole,
+      holderName: e.holderName,
+      confidence: e.confidence,
+      isExpired: e.isExpired,
+      status: e.status,
+      flagCount: ((e.flagsJson as unknown[]) ?? []).length,
+      criticalFlagCount: (
+        (e.flagsJson as Array<{ severity: string }>) ?? []
+      ).filter((f) => f.severity === 'CRITICAL').length,
+      createdAt: e.createdAt,
+    });
 
     res.json({
       sessionId,
       documentCount: completed.length,
+      failedCount: failed.length,
+      totalUploaded: extractions.length + pendingJobs.length,
       detectedRole: detectRole(extractions),
       overallHealth: computeOverallHealth(extractions),
-      documents: completed.map((e) => ({
-        id: e.id,
-        fileName: e.fileName,
-        documentType: e.documentType,
-        documentName: e.documentName,
-        applicableRole: e.applicableRole,
-        holderName: e.holderName,
-        confidence: e.confidence,
-        isExpired: e.isExpired,
-        flagCount: ((e.flagsJson as unknown[]) ?? []).length,
-        criticalFlagCount: (
-          (e.flagsJson as Array<{ severity: string }>) ?? []
-        ).filter((f) => f.severity === 'CRITICAL').length,
-        createdAt: e.createdAt,
-      })),
+      documents: completed.map(mapDoc),
+      failedDocuments: failed.map(mapDoc),
       pendingJobs: pendingJobs.map((j) => ({
         jobId: j.id,
         status: j.status,
